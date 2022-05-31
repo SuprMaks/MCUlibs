@@ -80,7 +80,7 @@ class MedianFilteredValue : private MedianFilter<DataType, buffer_length, stoppe
 			return val = MedianFilter<DataType, buffer_length, stopper>::operator()(data);
 		}
 
-		DataType operator()(void) {
+		DataType inline __attribute__((always_inline)) operator()(void) {
 			return val;
 		}
 };

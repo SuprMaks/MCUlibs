@@ -7,6 +7,19 @@
 #include "atomic.h"
 #include "Flag.h"
 
+template <class T>
+__attribute__((always_inline)) inline void DoNotOptimize(const T& value) {
+	asm volatile("" : "+m"(const_cast<T&>(value)));
+}
+
+__attribute__((always_inline)) inline void memory(void) {
+	asm volatile("" ::: "memory");
+}
+
+__attribute__((always_inline)) inline void nop(void) {
+	asm volatile ("nop" ::);
+}
+
 namespace Private {
 	template <class flag>
 	class AtomicCovering {
@@ -51,16 +64,20 @@ namespace Private {
 	private:
 		const bool tmp;
 		typedef Flag<IOReg<0x3F + __SFR_OFFSET>, SREG_I> flag;
+
 	public:
-		inline EnableInterrupts(void) : tmp(flag::isSet()) {
+		inline __attribute__((always_inline)) EnableInterrupts(void) : tmp(flag::isSet()) {
+			memory();
 			flag::Set();
 		}
-		inline ~EnableInterrupts(void) {
+
+		inline __attribute__((always_inline)) ~EnableInterrupts(void) {
 			if (!tmp) {
 				flag::Clear();
 			}
 		}
-		inline operator bool() const {
+
+		inline __attribute__((always_inline)) operator bool() const {
 			return false;
 		}
 	};
@@ -101,17 +118,17 @@ T atomic_read(T& var) {
 }
 
 template<const unsigned char addr = 0x3F + __SFR_OFFSET, const unsigned char b = SREG_I>
-inline unsigned char atomic_read(unsigned char &var) {
+inline __attribute__((always_inline)) unsigned char atomic_read(unsigned char &var) {
 	return var;
 }
 
 template<const unsigned char addr = 0x3F + __SFR_OFFSET, const unsigned char b = SREG_I>
-inline signed char atomic_read(signed char &var) {
+inline __attribute__((always_inline)) signed char atomic_read(signed char &var) {
 	return var;
 }
 
 template<const unsigned char addr = 0x3F + __SFR_OFFSET, const unsigned char b = SREG_I>
-inline bool atomic_read(bool &var) {
+inline __attribute__((always_inline)) bool atomic_read(bool &var) {
 	return var;
 }
 
@@ -153,15 +170,6 @@ constexpr auto ADC2V(T1 adc, T2  ref, T3  counts) {
 template<class T, size_t N>
 constexpr size_t array_count(T(&array)[N]) {
 	return N;
-}
-
-template <class T>
-__attribute__((always_inline)) inline void DoNotOptimize(const T& value) {
-	asm volatile("" : "+m"(const_cast<T&>(value)));
-}
-
-__attribute__((always_inline)) inline void memory(void) {
-	asm volatile("" ::: "memory");
 }
 
 #endif

@@ -20,111 +20,265 @@ class WatchdogCallbackLoop : public CallbackLoop {
 	friend class Singleton<WatchdogCallbackLoop>;
 };
 
+//template <typename TimerDT>
+//class TimerBase : public callback {
+//protected:
+//	TimerDT time;
+//	bool time_sync;
+//
+//	virtual void handler_timer_done(void) {
+//		return;
+//	}
+//
+//	void inline operator()(void) override {
+//		if (time_sync) {
+//			if (time > 0) {
+//				time--;
+//			}
+//			else {
+//				handler_timer_done();
+//			}
+//		}
+//		else {
+//			time_sync = true;
+//		}
+//	}
+//
+//	virtual void _timer(const TimerDT delay) {
+//		this->time = delay;
+//		memory();
+//		this->time_sync = false;
+//	}
+//
+//	virtual const TimerDT _timer(void) {
+//		volatile TimerDT tmp = time;
+//		memory();
+//		return tmp;
+//	}
+//
+//	inline const bool _isDone(void) {
+//		return _timer() == 0;
+//	}
+//
+//public:
+//	TimerBase(void) : time_sync(false), time(0) {}
+//
+//	virtual void atomic_timer(const TimerDT delay) {
+//		ATOMIC{
+//			timer(delay);
+//		}
+//	}
+//
+//	virtual const TimerDT atomic_timer(void) {
+//		volatile TimerDT tmp;
+//		memory();
+//		ATOMIC{
+//			tmp = timer();
+//		}
+//		return tmp;
+//	}
+//
+//	inline const bool atomic_isDone(void) {
+//		return timer() == 0;
+//	}
+//};
+
 template <typename TimerDT>
-class TimerBase : public callback {
+class TimerProt : public callback {
 	protected:
 		TimerDT time;
-		bool time_sync;
 
-		virtual void handler_timer_done(void) {
+		void virtual inline __attribute__((always_inline)) handler_timer_done(void) {
 			return;
 		}
 
-		void operator()(void) override {
-			if (this->time_sync) {
-				if (this->time > 0) {
-					this->time--;
-				}
-				else {
-					handler_timer_done();
-				}
+		void inline __attribute__((always_inline)) operator()(void) override {
+			if (time > 0) {
+				time--;
 			}
 			else {
-				this->time_sync = true;
+				this->handler_timer_done();
 			}
 		}
 
-	public:
-		TimerBase(void) : time_sync(false), time(0) {}
+		virtual void inline _timer(const TimerDT delay) {
+			//time = (delay == 0) ? 0 : delay + 1;
+			//time = delay + 1;
+			time = delay;
+		}
 
-		void timer(const TimerDT delay) {
-			this->time = delay;
-			this->time_sync = false;
+		virtual const TimerDT inline _timer(void) {
+			return time;
+		}
+
+		const bool inline __attribute__((always_inline)) _isDone(void) const {
+			return time == 0;
+		}
+
+	public:
+		TimerProt(void) : time(0) {}
+};
+
+template <typename TimerDT>
+class TimerBase : public TimerProt<TimerDT> {
+	private:
+		typedef TimerProt<TimerDT> base;
+
+	/*protected:
+		using base::_timer;*/
+
+	public:
+		TimerBase(void) {
+			ATOMIC{
+				base();
+			}
+		}
+
+		virtual void timer(const TimerDT delay) {
+			ATOMIC{
+				this->_timer(delay);
+			}
 		}
 
 		virtual const TimerDT timer(void) {
-			return this->time;
-		}
-
-		const bool isDone(void) {
-			return timer() == 0;
-		}
-};
-
-template <typename TimerDT, class flag = Flag<IOReg<0x3F + __SFR_OFFSET>, SREG_I>>
-class TimerBaseAtomic : public TimerBase<TimerDT> {
-	private:
-		typedef TimerBase<TimerDT> base;
-
-	protected:
-		bool interrupt_enabled, interrupt_flag;
-
-		void operator()(void) override {
-			if (interrupt_enabled) {
-				base::operator()();
-			}
-			else {
-				interrupt_flag = true;
-			}
-		}
-
-		class Atomic {
-			public:
-				inline Atomic(void) {
-					while (flag::isSet());
-					interrupt_enabled = false;
-				}
-
-				inline ~Atomic(void) {
-					interrupt_enabled = true;
-					if (interrupt_flag) {
-						operator()();
-						interrupt_flag = false;
-					}
-				}
-
-				inline operator bool() const {
-					return false;
-				}
-		};
-
-	public:
-		TimerBaseAtomic(void) : base(), interrupt_enabled(true), interrupt_flag(false) {}
-
-		void timer(const TimerDT delay) {
-			if (Atomic di = Atomic()) {}
-			else {
-				base::timer(delay);
-			}
-		}
-
-		const TimerDT timer(void) override {
 			volatile TimerDT tmp;
-			if (Atomic di = Atomic()) {}
-			else {
-				tmp = base::timer();
+			memory();
+			ATOMIC{
+				tmp = this->_timer();
 			}
 			return tmp;
 		}
+
+		const bool inline __attribute__((always_inline)) isDone(void) {
+			return this->timer() == 0;
+		}
 };
 
-template <typename DataType, typename DelayType, class timer_flag = Flag<IOReg<0>, 0>>
-class DelayedVal : public TimerBaseAtomic<DelayType, timer_flag> {
+template <>
+class TimerBase<unsigned char> : public TimerProt<unsigned char> {
 	private:
-		typedef TimerBaseAtomic<DelayType, timer_flag> base;
+		typedef TimerProt<unsigned char> base;
+
+	public:
+		virtual void inline __attribute__((always_inline)) timer(const unsigned char delay) {
+			this->_timer(delay);
+		}
+
+		virtual const unsigned char inline __attribute__((always_inline)) timer(void) {
+			return this->_timer();
+		}
+
+		const bool inline __attribute__((always_inline)) isDone(void) {
+			return this->timer() == 0;
+		}
+};
+
+//template <typename TimerDT, class flag>
+//class TimerProtAtomic : public TimerBase<TimerDT> {
+//	protected:
+//		typedef TimerBase<TimerDT> base;
+//		bool interrupt_enabled, interrupt_flag;
+//
+//		void inline operator()(void) override {
+//			if (interrupt_enabled) {
+//				base::operator()();
+//			}
+//			else {
+//				interrupt_flag = true;
+//			}
+//		}
+//
+//		inline void atomic_wrapper_in(void) {
+//			interrupt_enabled = false;
+//
+//			memory();
+//			while (flag::isSet());
+//			memory();
+//		}
+//
+//		inline void atomic_wrapper_out(void) {
+//			if (interrupt_flag) {
+//				base::operator()();
+//				memory();
+//				interrupt_flag = false;
+//			}
+//			memory();
+//			interrupt_enabled = true;
+//			memory();
+//		}
+//
+//	public:
+//		TimerProtAtomic(void) : base(), interrupt_enabled(true), interrupt_flag(false) {}
+//
+//		void timer(const TimerDT delay) override {
+//			memory();
+//			atomic_wrapper_in();
+//			memory();
+//			base::timer(delay);
+//			memory();
+//			atomic_wrapper_out();
+//			memory();
+//		}
+//
+//		const TimerDT timer(void) override {
+//			memory();
+//			atomic_wrapper_in();
+//			memory();
+//			volatile TimerDT tmp = base::timer();
+//			memory();
+//			atomic_wrapper_out();
+//			memory();
+//			return tmp;
+//		}
+//};
+
+//template <typename TimerDT>
+//class TimerProtAtomic<TimerDT, Flag<IOReg<0>, 0>> : public TimerBase<TimerDT> {
+//	protected:
+//		typedef TimerBase<TimerDT> base;
+//
+//		inline void atomic_wrapper_in(void) {}
+//		inline void atomic_wrapper_out(void) {}
+//
+//	public:
+//		TimerProtAtomic(void) : base() {}
+//};
+//
+//template <typename TimerDT, class flag = Flag<IOReg<0>, 0>>
+//class TimerAtomic : public TimerProtAtomic<TimerDT, flag> {
+//	private:
+//		typedef TimerProtAtomic<TimerDT, flag> baseTimer;
+//		typedef baseTimer::base base;
+//
+//	protected:
+//		using baseTimer::atomic_wrapper_in;
+//		using baseTimer::atomic_wrapper_out;
+//};
+//
+//template <class flag>
+//class TimerAtomic<unsigned char, flag> : public TimerProtAtomic<unsigned char, flag> {
+//	private:
+//		typedef TimerProtAtomic<unsigned char, flag> baseTimer;
+//		typedef baseTimer::base base;
+//	
+//	protected:
+//		using baseTimer::atomic_wrapper_in;
+//		using baseTimer::atomic_wrapper_out;
+//
+//	public:
+//		using baseTimer::timer;
+//
+//		const unsigned char timer(void) override {
+//			return base::timer();
+//		}
+//};
+
+template <typename DataType, typename DelayType>
+class DelayedVal : public TimerBase<DelayType> {
+	private:
+		typedef TimerBase<DelayType> base;
 
 	protected:
-		
 		#ifdef WDT_vect
 			friend ISRf(WDT_vect);
 		#endif
@@ -132,14 +286,16 @@ class DelayedVal : public TimerBaseAtomic<DelayType, timer_flag> {
 
 		virtual const DelayType get_timer_delay(const DataType state) const = 0;
 
-		void inline handler_timer_done(void) override {
-			this->curr_val = this->stage_val;
+		void inline __attribute__((always_inline)) handler_timer_done(void) override {
+			curr_val = stage_val;
 		}
 
-		void value(const DataType val) {
-			if (val != this->stage_val) {
-				this->stage_val = val;
-				this->timer(this->get_timer_delay(val));
+		void _value(const DataType val) {
+			if (val != stage_val) {
+				this->_timer(this->get_timer_delay(val));
+				memory();
+				//stage(val);
+				stage_val = val;
 			}
 		}
 
@@ -147,23 +303,47 @@ class DelayedVal : public TimerBaseAtomic<DelayType, timer_flag> {
 		DelayedVal(const DataType StartState) : base(), stage_val(StartState), curr_val(StartState) {};
 		DelayedVal(void) : base() {};
 
-		const inline DataType value(void) const {
-			return this->curr_val;
+		void value(const DataType val) {
+			if (val != stage_val) {
+				this->timer(this->get_timer_delay(val));
+				memory();
+				//stage(val);
+				stage_val = val;
+			}
+		}
+
+		// TODO: Thhis is not safe/atomic funct
+		const DataType inline __attribute__((always_inline)) value(void) const {
+			return curr_val;
+		}
+
+		// TODO: Thhis is not safe/atomic funct
+		const bool inline __attribute__((always_inline)) val_in_sync(void) const {
+			return curr_val == stage_val;
 		}
 };
 
-template <typename TimerDT, class flag = Flag<IOReg<0>, 0>>
-class Timer : public TimerBaseAtomic<TimerDT, flag> {
+template <typename TimerDT>
+class Timer : public TimerBase<TimerDT> {
 	private:
-		typedef TimerBaseAtomic<TimerDT, flag> base;
+		typedef TimerBase<TimerDT> base;
 		#ifdef WDT_vect
 			friend ISRf(WDT_vect);
 		#endif
 		unsigned char timer_id;
 
+	protected:
+		using base::_timer;
+
+		void _timer(const unsigned char Tid, const TimerDT delay) {
+			this->id(Tid);
+			memory();
+			this->_timer(delay);
+		}
+
 	public:
 		const bool operator()(const unsigned char Tid, const TimerDT delay) {
-			if (this->timer_id == Tid) {
+			if (timer_id == Tid) {
 				if (this->isDone()) {
 					this->timer(delay);
 					return true;
@@ -180,9 +360,102 @@ class Timer : public TimerBaseAtomic<TimerDT, flag> {
 		using base::timer;
 
 		void timer(const unsigned char Tid, const TimerDT delay) {
-			this->timer_id = Tid;
+			this->id(Tid);
+			memory();
 			this->timer(delay);
 		}
+
+		const unsigned char inline __attribute__((always_inline)) id(void) const {
+			return timer_id;
+		}
+
+		void inline __attribute__((always_inline)) id(const unsigned char Tid) {
+			timer_id = Tid;
+		}
 };
+
+//template <typename DataType, typename DelayType, class timer_flag = Flag<IOReg<0>, 0>>
+//class DelayedVal : public TimerAtomic<DelayType, timer_flag> {
+//private:
+//	typedef TimerAtomic<DelayType, timer_flag> base;
+//
+//protected:
+//
+//#ifdef WDT_vect
+//	friend ISRf(WDT_vect);
+//#endif
+//	DataType stage_val, curr_val;
+//
+//	//using base::atomic_wrapper_in;
+//	//using base::atomic_wrapper_out;
+//
+//	virtual const DelayType get_timer_delay(const DataType state) const = 0;
+//
+//	void inline handler_timer_done(void) override {
+//		this->curr_val = this->stage_val;
+//	}
+//
+//	/*void virtual inline stage(const DataType val) {
+//		this->stage_val = val;
+//	}*/
+//
+//	void value(const DataType val) {
+//		if (val != this->stage_val) {
+//			this->timer(this->get_timer_delay(val));
+//			memory();
+//			//stage(val);
+//			stage_val = val;
+//		}
+//	}
+//
+//public:
+//	DelayedVal(const DataType StartState) : base(), stage_val(StartState), curr_val(StartState) {};
+//	DelayedVal(void) : base() {};
+//
+//	const inline DataType value(void) const {
+//		return this->curr_val;
+//	}
+//};
+//
+//template <typename TimerDT, class flag = Flag<IOReg<0>, 0>>
+//class Timer : public TimerAtomic<TimerDT, flag> {
+//private:
+//	typedef TimerAtomic<TimerDT, flag> base;
+//#ifdef WDT_vect
+//	friend ISRf(WDT_vect);
+//#endif
+//	unsigned char timer_id;
+//
+//public:
+//	const bool operator()(const unsigned char Tid, const TimerDT delay) {
+//		if (this->timer_id == Tid) {
+//			if (this->isDone()) {
+//				this->timer(delay);
+//				return true;
+//			}
+//		}
+//		else {
+//			this->timer(Tid, delay);
+//		}
+//		return false;
+//	}
+//
+//	Timer(unsigned char id = 0) : base(), timer_id(id) {}
+//
+//	using base::timer;
+//
+//	void timer(const unsigned char Tid, const TimerDT delay) {
+//		this->timer_id = Tid;
+//		this->timer(delay);
+//	}
+//
+//	const unsigned char inline id(void) {
+//		return this->timer_id;
+//	}
+//
+//	void inline id(const unsigned char Tid) {
+//		this->timer_id = Tid;
+//	}
+//};
 
 #endif
