@@ -55,11 +55,11 @@ class Sensor : public DelayedVal <bool, DelayType> {
 			friend ISRf(PCINT0_vect);
 		#endif
 
-		const bool inline __attribute__((always_inline)) real_val(void) const {
+		bool inline __attribute__((always_inline)) real_val(void) {
 			return Pin::IsSet();
 		}
 
-		const DelayType get_timer_delay(const bool state) const override {
+		DelayType get_timer_delay(bool state) override {
 			return state ? DelayON : DelayOFF;
 		}
 
@@ -89,7 +89,7 @@ class Sensor : public DelayedVal <bool, DelayType> {
 
 	public:
 		Sensor(
-			const bool StartState,
+			bool StartState,
 			const bool PullUp) : base(StartState) {
 				Pin::SetConfiguration(Pin::Port::In);
 				if (PullUp) {

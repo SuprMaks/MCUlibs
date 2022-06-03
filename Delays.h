@@ -101,17 +101,17 @@ class TimerProt : public callback {
 			}
 		}
 
-		virtual void inline _timer(const TimerDT delay) {
+		virtual void inline _timer(TimerDT delay) {
 			//time = (delay == 0) ? 0 : delay + 1;
 			//time = delay + 1;
 			time = delay;
 		}
 
-		virtual const TimerDT inline _timer(void) {
+		virtual TimerDT inline _timer(void) {
 			return time;
 		}
 
-		const bool inline __attribute__((always_inline)) _isDone(void) const {
+		bool inline __attribute__((always_inline)) _isDone(void) {
 			return time == 0;
 		}
 
@@ -134,7 +134,7 @@ class TimerBase : public TimerProt<TimerDT> {
 			}
 		}
 
-		virtual void timer(const TimerDT delay) {
+		virtual void timer(TimerDT delay) {
 			ATOMIC{
 				this->_timer(delay);
 			}
@@ -149,7 +149,7 @@ class TimerBase : public TimerProt<TimerDT> {
 			return tmp;
 		}
 
-		const bool inline __attribute__((always_inline)) isDone(void) {
+		bool inline __attribute__((always_inline)) isDone(void) {
 			return this->timer() == 0;
 		}
 };
@@ -160,15 +160,15 @@ class TimerBase<unsigned char> : public TimerProt<unsigned char> {
 		typedef TimerProt<unsigned char> base;
 
 	public:
-		virtual void inline __attribute__((always_inline)) timer(const unsigned char delay) {
+		virtual void inline __attribute__((always_inline)) timer(unsigned char delay) {
 			this->_timer(delay);
 		}
 
-		virtual const unsigned char inline __attribute__((always_inline)) timer(void) {
+		virtual unsigned char inline __attribute__((always_inline)) timer(void) {
 			return this->_timer();
 		}
 
-		const bool inline __attribute__((always_inline)) isDone(void) {
+		bool inline __attribute__((always_inline)) isDone(void) {
 			return this->timer() == 0;
 		}
 };
@@ -284,15 +284,15 @@ class DelayedVal : public TimerBase<DelayType> {
 		#endif
 		DataType stage_val, curr_val;
 
-		virtual const DelayType get_timer_delay(const DataType state) const = 0;
+		virtual DelayType get_timer_delay(DataType state) = 0;
 
 		void inline __attribute__((always_inline)) handler_timer_done(void) override {
 			curr_val = stage_val;
 		}
 
-		void _value(const DataType val) {
+		void _value(DataType val) {
 			if (val != stage_val) {
-				this->_timer(this->get_timer_delay(val));
+				this->_timer(get_timer_delay(val));
 				memory();
 				//stage(val);
 				stage_val = val;
@@ -300,12 +300,12 @@ class DelayedVal : public TimerBase<DelayType> {
 		}
 
 	public:
-		DelayedVal(const DataType StartState) : base(), stage_val(StartState), curr_val(StartState) {};
+		DelayedVal(DataType StartState) : base(), stage_val(StartState), curr_val(StartState) {};
 		DelayedVal(void) : base() {};
 
-		void value(const DataType val) {
+		void value(DataType val) {
 			if (val != stage_val) {
-				this->timer(this->get_timer_delay(val));
+				this->timer(get_timer_delay(val));
 				memory();
 				//stage(val);
 				stage_val = val;
@@ -313,12 +313,12 @@ class DelayedVal : public TimerBase<DelayType> {
 		}
 
 		// TODO: Thhis is not safe/atomic funct
-		const DataType inline __attribute__((always_inline)) value(void) const {
+		DataType inline __attribute__((always_inline)) value(void) {
 			return curr_val;
 		}
 
 		// TODO: Thhis is not safe/atomic funct
-		const bool inline __attribute__((always_inline)) val_in_sync(void) const {
+		bool inline __attribute__((always_inline)) val_in_sync(void) {
 			return curr_val == stage_val;
 		}
 };
