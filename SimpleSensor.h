@@ -24,6 +24,10 @@
 	ISRv(INT3_vect)
 #endif
 
+#ifdef PCINT0_vect
+	ISRv(PCINT0_vect);
+#endif
+
 template <class Pin, typename DelayType, const DelayType DelayON, const DelayType DelayOFF>
 class Sensor : public DelayedVal <bool, DelayType> {
 	protected:
@@ -47,6 +51,10 @@ class Sensor : public DelayedVal <bool, DelayType> {
 			friend ISRf(INT6_vect);
 		#endif
 
+		#ifdef PCINT0_vect
+			friend ISRf(PCINT0_vect);
+		#endif
+
 		const bool inline __attribute__((always_inline)) real_val(void) const {
 			return Pin::IsSet();
 		}
@@ -67,7 +75,7 @@ class Sensor : public DelayedVal <bool, DelayType> {
 			this->_value(real_val());
 		}
 
-	protected:
+	public:
 		//using base::atomic_wrapper_in;
 		//using base::atomic_wrapper_out;
 
