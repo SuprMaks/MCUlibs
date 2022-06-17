@@ -97,7 +97,7 @@ class TimerProt : public callback {
 				time--;
 			}
 			else {
-				this->handler_timer_done();
+				handler_timer_done();
 			}
 		}
 
@@ -107,11 +107,11 @@ class TimerProt : public callback {
 			time = delay;
 		}
 
-		virtual TimerDT inline _timer(void) {
+		virtual TimerDT inline _timer(void) volatile {
 			return time;
 		}
 
-		bool inline __attribute__((always_inline)) _isDone(void) {
+		bool inline _isDone(void) volatile {
 			return time == 0;
 		}
 
@@ -140,17 +140,18 @@ class TimerBase : public TimerProt<TimerDT> {
 			}
 		}
 
-		virtual const TimerDT timer(void) {
+		virtual TimerDT timer(void) {
 			volatile TimerDT tmp;
 			memory();
 			ATOMIC{
 				tmp = this->_timer();
 			}
+			memory();
 			return tmp;
 		}
 
 		bool inline __attribute__((always_inline)) isDone(void) {
-			return this->timer() == 0;
+			return timer() == 0;
 		}
 };
 
@@ -161,15 +162,15 @@ class TimerBase<unsigned char> : public TimerProt<unsigned char> {
 
 	public:
 		virtual void inline __attribute__((always_inline)) timer(unsigned char delay) {
-			this->_timer(delay);
+			_timer(delay);
 		}
 
 		virtual unsigned char inline __attribute__((always_inline)) timer(void) {
-			return this->_timer();
+			return _timer();
 		}
 
 		bool inline __attribute__((always_inline)) isDone(void) {
-			return this->timer() == 0;
+			return timer() == 0;
 		}
 };
 
@@ -313,12 +314,12 @@ class DelayedVal : public TimerBase<DelayType> {
 		}
 
 		// TODO: Thhis is not safe/atomic funct
-		DataType inline __attribute__((always_inline)) value(void) {
+		DataType inline __attribute__((always_inline)) value(void) volatile {
 			return curr_val;
 		}
 
 		// TODO: Thhis is not safe/atomic funct
-		bool inline __attribute__((always_inline)) val_in_sync(void) {
+		bool inline __attribute__((always_inline)) val_in_sync(void) volatile {
 			return curr_val == stage_val;
 		}
 };
@@ -335,41 +336,41 @@ class Timer : public TimerBase<TimerDT> {
 	protected:
 		using base::_timer;
 
-		void _timer(const unsigned char Tid, const TimerDT delay) {
-			this->id(Tid);
+		void _timer(unsigned char Tid, TimerDT delay) {
+			id(Tid);
 			memory();
-			this->_timer(delay);
+			_timer(delay);
 		}
 
 	public:
-		const bool operator()(const unsigned char Tid, const TimerDT delay) {
+		bool operator()(unsigned char Tid, TimerDT delay) {
 			if (timer_id == Tid) {
 				if (this->isDone()) {
-					this->timer(delay);
+					timer(delay);
 					return true;
 				}
 			}
 			else {
-				this->timer(Tid, delay);
+				timer(Tid, delay);
 			}
 			return false;
 		}
 
-		Timer(unsigned char id = 0) : base(), timer_id(id) {}
+		Timer(unsigned char id = 0): timer_id(id) {}
 
 		using base::timer;
 
-		void timer(const unsigned char Tid, const TimerDT delay) {
-			this->id(Tid);
+		void timer(unsigned char Tid, TimerDT delay) {
+			id(Tid);
 			memory();
-			this->timer(delay);
+			timer(delay);
 		}
 
-		const unsigned char inline __attribute__((always_inline)) id(void) const {
+		unsigned char inline __attribute__((always_inline)) id(void) volatile {
 			return timer_id;
 		}
 
-		void inline __attribute__((always_inline)) id(const unsigned char Tid) {
+		void inline id(unsigned char Tid) {
 			timer_id = Tid;
 		}
 };

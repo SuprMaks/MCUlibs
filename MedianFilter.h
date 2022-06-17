@@ -16,6 +16,8 @@ class MedianFilter {
 	
 	public:
 		MedianFilter(void): buffer{}, datpoint(buffer), small{NULL, stopper}, big{&small, stopper} {}
+
+		const unsigned char inline __attribute__((always_inline)) length(void) { return buffer_length; }
 	
 		DataType operator()(DataType data) {
 			if ((++datpoint - buffer) >= buffer_length) {

@@ -55,7 +55,7 @@ class Sensor : public DelayedVal <bool, DelayType> {
 			friend ISRf(PCINT0_vect);
 		#endif
 
-		bool inline __attribute__((always_inline)) real_val(void) {
+		bool inline __attribute__((always_inline)) real_val(void) volatile {
 			return Pin::IsSet();
 		}
 

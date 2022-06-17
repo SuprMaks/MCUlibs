@@ -38,6 +38,7 @@ class ButtonAssyncBase : public callback {
 
 		void inline __attribute__((always_inline)) interruptCallback(void) {
 			state = real_state();
+			memory();
 			if (reset_flag) {
 				if (!state) {
 					_reset();
@@ -51,6 +52,7 @@ class ButtonAssyncBase : public callback {
 				else {
 					overflow_limit_sum(clicks_count, 1);
 				}
+				memory();
 				prev_state = state;
 			}
 		}
@@ -74,12 +76,12 @@ class ButtonAssyncBase : public callback {
 				Pin::SetPullUp(Pin::Port::NoPullUp);
 			}
 			memory();
-			bool tmp = real_state();
+			const bool tmp = real_state();
 			prev_state = tmp;
 			state = tmp;
 		}
 
-		inline unsigned char clicks(void) {
+		inline unsigned char clicks(void) volatile {
 			if (reset_flag) {
 				return 0;
 			}
@@ -90,7 +92,7 @@ class ButtonAssyncBase : public callback {
 			reset_flag = true;
 		}
 
-		const virtual TimerDT timer(void) {
+		virtual TimerDT timer(void) volatile {
 			if (reset_flag) {
 				return 0;
 			}
@@ -115,11 +117,11 @@ class ButtonAssyncBase : public callback {
 			}
 		}
 
-		bool inline __attribute__((always_inline)) real_state(void) {
+		bool inline __attribute__((always_inline)) real_state(void) volatile {
 			return Pin::IsSet();
 		}
 
-		inline __attribute__((always_inline)) operator bool(void) const {
+		inline __attribute__((always_inline)) operator bool(void) const volatile {
 			return state;
 		}
 };
@@ -127,12 +129,13 @@ class ButtonAssyncBase : public callback {
 template <class Pin, typename TimerDT, class mask, class flg>
 class ButtonAssync : public ButtonAssyncBase<Pin, TimerDT, mask, flg> {
 	public:
-		const TimerDT timer(void) override {
+		TimerDT timer(void) override {
 			if (this->reset_flag) {
 				return 0;
 			}
 
-			volatile TimerDT tmp;
+			volatile const TimerDT tmp;
+			memory();
 			ATOMIC{
 				tmp = this->time;
 			}
